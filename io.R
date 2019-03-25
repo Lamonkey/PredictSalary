@@ -10,7 +10,7 @@ mtplayer.pca <- prcomp(player_data.raw[,c(4,8:10,22:31)],center = TRUE,scale. = 
 #without age
 mtplayer.pca <- prcomp(player_data.raw[,c(8:10,22:31)],center = TRUE,scale. = TRUE)
 summary(mtplayer.pca)
-#get ride of salary
+  #get ride of salary
 mtplayer.pca <- prcomp(player_data.raw[,c(8:10,22:30)],center = TRUE,scale. = TRUE)
 
 #salary accroding to age
