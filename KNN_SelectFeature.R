@@ -6,48 +6,61 @@ library(stats)
 library(philentropy)
 library(class)
 library(gmodels)
-# import data
-player_data = read.csv(choose.files())
-#shuffle 
-player_data.random = player_data[sample(nrow(player_data)),]
-#choose features
-features <- player_data.random[,c(22,12,13,20,23,25,30,28)]
-features[is.na(features)] <- 0
-#choose class
-class_ <- player_data.random[,33]
-norm_ <- matrix(,ncol=0,nrow=nrow(features))
-#normalize, minimax 
-normalize<- function(x){
-  x.min = min(x)
-  x.max = max(x)
-  return((x-x.min) / (x.max-x.min))
-}
 
-for(i in 1:length(features)){
-  norm_<-cbind(norm_,normalize(features[,i]))
-}
+#shuffle 
+player.data.random = player.data[sample(nrow(player.data)),]
+
+
+#choose the dependent
+dependendVariable <- player.data.random$SalaryClassExpanded
+
+
 
 #split into train, development, test by 70%, 15%,15%
-train_x <-norm_[1:255,];
-development_x <-norm_[256:304,];
-test_x <- norm_[305:322,]
-train_y <-class_[1:255];
-development_y <- class_[256:304];
-test_y <- class_[305:322];
+#leave out position
+#TODO: convert Position to integer data
+player.data.random$Pos <- unclass(player.data.random$Pos)
+train_x <-player.data.random[1:255,selectedFeatures];
+development_x <-player.data.random[256:304,selectedFeatures];
+test_x <- player.data.random[305:322,selectedFeatures]
+train_y <-dependendVariable[1:255];
+development_y <- dependendVariable[256:304];
+test_y <- dependendVariable[305:322];
 
 #hyper tuning k
-results <- matrix(ncol = 2)
+results<- matrix(ncol=2)
 for(k in 1:40){
   predict <- knn(train = train_x, test = development_x, cl = train_y, k = k, use.all = FALSE)
   xtab <- table(predict,development_y)
-  result <- confusionMatrix(xtab)$overall["Accuracy"]
-  results <- rbind(results,c(k,result))
+  sum = 0
+  for (i in 1:ncol(xtab)){
+    tmp = 0
+    for (m in 1: nrow(xtab)){
+      tmp =  tmp + xtab[m,i]*(i-m)^2
+    }
+    sum = sum + tmp
+  }
+  mse <- sum / length(development_y)
+  
+  results <- rbind(results,c(k,mse))
+  
 }
-results[1,] <- c(0,0)
-n <- which.max(results[,2])-1
+plot(results,main = "MSE of K neighbor",xlab = "number of neighbor", ylab="MSE")
+n <- which.min(results[,2]) -1 
+
 
 #use knn on test set
-predict <- knn(train = train_x, test = test_x, cl = train_y, k = k, use.all = FALSE)
+predict <- knn(train = train_x, test = test_x, cl = train_y, k = n, use.all = FALSE)
 xtab <- table(predict,test_y)
 result <- confusionMatrix(xtab)
+for (i in 1:ncol(xtab)){
+  tmp = 0
+  for (m in 1: nrow(xtab)){
+    tmp =  tmp + xtab[m,i]*(i-m)^2
+  }
+  sum = sum + tmp
+}
+mse <- sum / length(development_y)
+mse
+  
 

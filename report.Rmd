@@ -1,0 +1,128 @@
+---
+title: "NBA Player Salary Predictor"
+author: "Jianlin Chen"
+date: "10/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(Boruta)
+library(Amelia)
+library(lattice)
+library(caret)
+library(graphics)
+library(stats)
+library(philentropy)
+library(class)
+library(gmodels)
+setwd("C:/Users/jianl/Desktop/NBAPlayerSalary")
+
+```
+
+## Feature Selection using Boruta algorithm
+
+In order to use Boruta algorithm, I need to discretized the dependent variable, NBA players' salary into category variable. I divided them into 6 category.
+
+### Check the data type and missing data
+```{r cars}
+player.data = read.csv('player_stats_6.csv',header=T)
+summary(player.data)
+missmap(player.data)
+```
+###Replace NAs with 0
+```{r}
+player.data[is.na(player.data)] <- 0
+missmap(player.data)
+```
+### Convert Pos,Tm features into factor data type
+```{r}
+convert <- c(3,5)
+player.data$Tm <- as.factor(player.data$Tm)
+player.data$Pos <- as.factor(player.data$Pos)
+str(player.data)
+```
+## Use Boruta algorithm to choose feature
+I used 150 for maxRuns and used TentativeRoughFix to classify tentative features
+```{r}
+set.seed(111)
+features <- c(3:30,33)
+boruta.train <- Boruta(SalaryClassExpanded~.,data = player.data[,features],maxRuns = 150, doTrace = 0)
+boruta.train <- TentativeRoughFix(boruta.train)
+print(boruta.train)
+```
+Plot the importance to have a better look. 
+```{r}
+plot(boruta.train, xlab = "", xaxt = "n")
+lz<-lapply(1:ncol(boruta.train$ImpHistory),function(i)
+  boruta.train$ImpHistory[is.finite(boruta.train$ImpHistory[,i]),i])
+names(lz) <- colnames(boruta.train$ImpHistory)
+Labels <- sort(sapply(lz,median))
+axis(side = 1,las=2,labels = names(Labels),
+     at = 1:ncol(boruta.train$ImpHistory), cex.axis = 0.7)
+```
+###Get the feature
+```{r}
+selectedFeatures <- getSelectedAttributes(boruta.train, withTentative = F)
+player_df <- attStats(boruta.train)
+print(player_df)
+```
+##Making training, development and test data set
+First shuffle the data, because data are sorted during preprocessing
+```{r}
+player.data.random = player.data[sample(nrow(player.data)),]
+```
+Giving dependent variable
+```{r}
+dependendVariable <- player.data.random$SalaryClassExpanded
+```
+### 70% training, 15% development and 15% testing
+Also Convert Pos feature from factor to integer
+```{r}
+player.data.random$Pos <- unclass(player.data.random$Pos)
+train_x <-player.data.random[1:255,selectedFeatures];
+development_x <-player.data.random[256:304,selectedFeatures];
+test_x <- player.data.random[305:322,selectedFeatures]
+train_y <-dependendVariable[1:255];
+development_y <- dependendVariable[256:304];
+test_y <- dependendVariable[305:322];
+```
+
+## Train KNN model 
+Train the KNN model with hypertuning the k variable, number of neighbor variable, and evaluate the performance using mean square error. Choosing the k value produce the lowest mean square error on overall development set.
+```{r}
+results<- matrix(ncol=2)
+for(k in 1:40){
+  predict <- knn(train = train_x, test = development_x, cl = train_y, k = k, use.all = FALSE)
+  xtab <- table(predict,development_y)
+  sum = 0
+  for (i in 1:ncol(xtab)){
+    tmp = 0
+    for (m in 1: nrow(xtab)){
+      tmp =  tmp + xtab[m,i]*(i-m)^2
+    }
+    sum = sum + tmp
+  }
+  mse <- sum / length(development_y)
+  
+  results <- rbind(results,c(k,mse))
+  
+}
+plot(results,main = "MSE of K neighbor",xlab = "number of neighbor", ylab="MSE")
+n <- which.min(results[,2]) -1 
+```
+
+## Test KNN model on test Set
+```{r}
+predict <- knn(train = train_x, test = test_x, cl = train_y, k = n, use.all = FALSE)
+xtab <- table(predict,test_y)
+for (i in 1:ncol(xtab)){
+  tmp = 0
+  for (m in 1: nrow(xtab)){
+    tmp =  tmp + xtab[m,i]*(i-m)^2
+  }
+  sum = sum + tmp
+}
+mse <- sum / length(development_y)
+xtab
+mse
+```

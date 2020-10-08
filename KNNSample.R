@@ -39,7 +39,7 @@ normalize<- function(x){
   x.max = max(x)
   return((x-x.min) / (x.max-x.min))
 }
-player.data = read.csv('/home/michael/git/PredictSalary/player_stats.csv')
+player.data = read.csv('player_stats_6.csv')
 player_data <- player.data[sample(nrow(player.data)),]
 #try to use all features
 Salary = (player_data$Salary)
